@@ -204,6 +204,8 @@ void critbit_clear(critbit_head *head) {
     head = NULL;
 }
 
+
+// Main function
 critbit_head head = NULL;
 
 void set(int iter) {
