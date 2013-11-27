@@ -1,4 +1,4 @@
-map_benckmark
+map_benchmark
 =============
 
 Benchmark various map data structure algorithms/implementations
