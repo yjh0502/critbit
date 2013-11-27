@@ -1,34 +1,26 @@
-void set(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-
-        m[std::string(buf)] = i;
-    }
+void* init(void) {
+    MAP_TYPE *m = new MAP_TYPE();
+    return m;
 }
 
-void get(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-        int val = m[std::string(buf)];
-        if(i != val) {
-            printf("invalid value: %d != %d\n", i, val);
-            exit(-1);
-        }
-    }
+int add(void *obj, const char *key, void *val) {
+    MAP_TYPE *m = (MAP_TYPE *)obj;
+    auto iter = m->insert(std::pair<std::string, void *>(std::string(key), val));
+    return !iter.second;
 }
 
-void cleanup(int iter) {
-    m.clear();
+void* find(void *obj, const char *key) {
+    MAP_TYPE *m = (MAP_TYPE *)obj;
+    auto iter = m->find(std::string(key));
+    return iter->second;
 }
 
-int main(void) {
-    measure(set, iter);
-    measure(get, iter);
-    measure(cleanup, iter);
+int del(void *obj, const char *key) {
+    MAP_TYPE *m = (MAP_TYPE *)obj;
+    return !m->erase(std::string(key));
+}
 
-    return 0;
+void clear(void *obj) {
+    MAP_TYPE *m = (MAP_TYPE *)obj;
+    m->clear();
 }

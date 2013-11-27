@@ -6,35 +6,40 @@ CXXFLAGS=$(FLAGS) -std=c++0x
 
 CXXSRCS= stlmap.cc stluomap.cc \
 	sparsehash.cc
-SRCS=none.c bsdtree.c uthash.c \
-	art.c redisdict.c critbit.c
+SRCS=none.c \
+	bsdtree.c \
+	uthash.c redisdict.c \
+	art.c critbit.c
+
+export ITER=100000
 
 OBJS=$(SRCS:.c=.o) $(CXXSRCS:.cc=.o)
 BINS=$(OBJS:.o=.bin)
 OUTS=$(OBJS:.o=.out)
 
-export TIME=%Esec, %Mk
+export TIME=%E %M
 
-all: run
+.PHONY: bins run
+
+bins: $(BINS)
+
+all: run $(BINS)
 
 run: $(OUTS)
 
 %.out: %.bin
 	time ./$< 2>&1 | tee $@
 
-sparsehash.bin: sparsehash.o helper.o
-	$(CXX) $(CFLAGS) $^ -o $@
-
 %.bin: %.o helper.o
-	$(CXX) $(CFLAGS) $^ -o $@
+	$(CXX) $(CFLAGS) $^ -o $@ && strip -s $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
 
-%.o: %.cc
+%.o: %.cc cc_common.h
 	$(CXX) $(CXXFLAGS) -c $<
 
-$(OBJS): helper.h
+$(OBJS): helper.h Makefile
 
 clean:
 	rm -f *.o *.bin *.out

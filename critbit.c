@@ -5,8 +5,15 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "helper.h"
-
+// Goal: sizeof(struct critbit_node) == 16
+// 8 bytes string + 8 bytes value
+// two 4 bytes internal pointer + 4 bytes bytepos + 1 byte otherbits
+//
+// for one 4k arena:
+//      total 256 16byte blocks
+//      32 bytes bitmap
+//      16 bytes pointer for splay_tree of arenas
+//
 struct critbit_node {
     void *child[2];
     uint32_t byte;
@@ -204,53 +211,32 @@ void critbit_clear(critbit_head *head) {
     head = NULL;
 }
 
+#include "helper.h"
 
-// Main function
-critbit_head head = NULL;
-
-void set(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-        void* val = (void *)(size_t)i;
-
-        if(critbit_insert(&head, buf, val)) {
-            printf("Failed to insert `%s`\n", buf);
-            exit(-1);
-        }
-    }
+void* init(void) {
+    critbit_head *head = malloc(sizeof(critbit_head));
+    return head;
 }
 
-void get(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-        void *out;
-
-        if(critbit_get(&head, buf, &out)) {
-            printf("Failed to get `%s`\n", buf);
-            exit(-1);
-        }
-
-        int val = (size_t)out;
-        if(val != i) {
-            printf("invalid value: %d != %d\n", i, val);
-            exit(-1);
-        }
-    }
+int add(void *obj, const char *key, void *val) {
+    critbit_head *head = obj;
+    return critbit_insert(head, key, val);
 }
 
-void cleanup(int iter) {
-    critbit_clear(&head);
+void* find(void *obj, const char *key) {
+    critbit_head *head = obj;
+    void* out;
+    critbit_get(head, key, &out);
+    return out;
 }
 
-int main(void) {
-    //printf("sizeof(struct critbit_node): %lu\n\n", sizeof(struct critbit_node));
-    measure(set, iter);
-    measure(get, iter);
-    measure(cleanup, iter);
-
-    return 0;
+int del(void *obj, const char *key) {
+    critbit_head *head = obj;
+    return critbit_delete(head, key);
 }
+
+void clear(void *obj) {
+    critbit_head *head = obj;
+    critbit_clear(head);
+}
+

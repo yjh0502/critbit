@@ -889,53 +889,47 @@ int art_iter_prefix(art_tree *t, char *key, int key_len, art_callback cb, void *
 }
 
 
-// Main function
-
 #include "helper.h"
 art_tree tree;
 
-void set(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-        void* val = (void *)(size_t)i;
+void* init(void) {
+    art_tree *tree = malloc(sizeof(art_tree));
+    if(!tree)
+        return NULL;
 
-        if(art_insert(&tree, buf, strlen(buf), val)) {
-            printf("Failed to insert `%s`\n", buf);
-            exit(-1);
-        }
-    }
-}
-
-void get(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-        void *out = art_search(&tree, buf, strlen(buf));
-
-        int val = (size_t)out;
-        if(val != i) {
-            printf("invalid value: %d != %d\n", i, val);
-            exit(-1);
-        }
-    }
-}
-
-void cleanup(int iter) {
-    destroy_art_tree(&tree);
-}
-
-int main(void) {
-    if(init_art_tree(&tree)) {
-        printf("Failed to init\n");
-        return -1;
+    if(init_art_tree(tree)) {
+        free(tree);
+        return NULL;
     }
 
-    measure(set, iter);
-    measure(get, iter);
-    measure(cleanup, iter);
+    return tree;
+}
+
+int add(void *obj, const char *key, void *val) {
+    art_tree *tree = obj;
+
+    void *out = find(obj, key);
+    if(out)
+        return 1;
+
+    if(art_insert(tree, (char *)key, strlen(key), val))
+        return 1;
 
     return 0;
+}
+
+void* find(void *obj, const char *key) {
+    art_tree *tree = obj;
+    return art_search(tree, (char *)key, strlen(key));
+}
+
+int del(void *obj, const char *key) {
+    art_tree *tree = obj;
+    void *out = art_delete(tree, (char *)key, strlen(key));
+    return out ? 1 : 0;
+}
+
+void clear(void *obj) {
+    art_tree *tree = obj;
+    destroy_art_tree(tree);
 }

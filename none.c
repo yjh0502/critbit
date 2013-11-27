@@ -1,29 +1,23 @@
 
 #include "helper.h"
+#include <stdlib.h>
 
-#include <stdio.h>
-
-void set(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-    }
+void* init(void) {
+    return NULL;
 }
 
-void get(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-    }
-}
-
-void cleanup(int iter) {
-}
-
-int main(void) {
-    measure(set, iter);
-    measure(get, iter);
+int add(void *obj, const char *key, void *val) {
     return 0;
 }
+
+void* find(void *obj, const char *key) {
+    return 0;
+}
+
+int del(void *obj, const char *key) {
+    return 0;
+}
+
+void clear(void *obj) {
+}
+

@@ -957,45 +957,27 @@ dictType dictTypeHeapStringCopyKeyValue = {
 
 // Main function
 #include "helper.h"
-dict *head;
 
-void set(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
+void* init(void) {
+    return dictCreate(&dictTypeHeapStringCopyKey, NULL);
+}
 
-        void* val = (void *)(size_t)i;
-        dictAdd(head, buf, val);
+int add(void *obj, const char *key, void *val) {
+    return dictAdd(obj, (void *)key, val);
+}
+
+void* find(void *obj, const char *key) {
+    dictEntry *entry = dictFind(obj, (void *)key);
+    if(!entry) {
+        return NULL;
     }
+    return entry->v.val;
 }
 
-void get(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-        dictEntry *entry = dictFind(head, buf);
-        void *out = entry->v.val;
-
-        int val = (size_t)out;
-        if(val != i) {
-            printf("invalid value: %d != %d\n", i, val);
-            exit(-1);
-        }
-    }
+int del(void *obj, const char *key) {
+    return dictDelete(obj, (void *)key);
 }
 
-void cleanup(int iter) {
-    dictEmpty(head);
-}
-
-int main(void) {
-    head = dictCreate(&dictTypeHeapStringCopyKey, NULL);
-
-    measure(set, iter);
-    measure(get, iter);
-    measure(cleanup, iter);
-
-    return 0;
+void clear(void *obj) {
+    dictEmpty(obj);
 }

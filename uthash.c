@@ -6,52 +6,62 @@
 
 struct hash_entry {
     UT_hash_handle hh;
-    int value;
+    void *value;
     char key[0];
 };
 
-struct hash_entry *head = NULL;
+struct hash_root {
+    struct hash_entry *head;
+};
 
-void set(int iter) {
-    int i;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
-        int len = strlen(buf);
-
-        struct hash_entry *entry = malloc(sizeof(struct hash_entry) + len + 1);
-        entry->value = i;
-        strcpy(entry->key, buf);
-
-        HASH_ADD_STR(head, key, entry);
-    }
+void* init(void) {
+    struct hash_root *root = malloc(sizeof(struct hash_root *));
+    root->head = NULL;
+    return root;
 }
 
-void get(int iter) {
-    int i;
+int add(void *obj, const char *key, void *val) {
+    struct hash_root *root = obj;
     struct hash_entry *entry;
-    char buf[20];
-    for(i = 0; i < iter; i++) {
-        sprintf(buf, "%09d", i);
 
-        HASH_FIND_STR(head, buf, entry);
-        if(entry->value != i) {
-            printf("invalid value: %d != %d\n", i, entry->value);
-            exit(-1);
-        }
-    }
-}
+    HASH_FIND_STR(root->head, key, entry);
+    if(entry)
+        return 1;
 
-void cleanup(int iter) {
-    struct hash_entry *entry, *tmp;
-    HASH_ITER(hh, head, entry, tmp) {
-        free(entry);
-    }
-}
+    int len = strlen(key);
+    entry = malloc(sizeof(struct hash_entry) + len + 1);
+    entry->value = val;
+    strcpy(entry->key, key);
 
-int main(void) {
-    measure(set, iter);
-    measure(get, iter);
-    measure(cleanup, iter);
+    HASH_ADD_STR(root->head, key, entry);
     return 0;
+}
+
+void* find(void *obj, const char *key) {
+    struct hash_root *root = obj;
+    struct hash_entry *entry;
+
+    HASH_FIND_STR(root->head, key, entry);
+    if(entry)
+        return NULL;
+    return entry->value;
+}
+
+int del(void *obj, const char *key) {
+    struct hash_root *root = obj;
+    struct hash_entry *entry = find(obj, key);
+    if(!entry) {
+        return 1;
+    }
+
+    HASH_DEL(root->head, entry);
+    return 0;
+}
+
+void clear(void *obj) {
+    struct hash_root *root = obj;
+    struct hash_entry *entry, *tmp;
+    HASH_ITER(hh, root->head, entry, tmp) {
+        HASH_DEL(root->head, entry);
+    }
 }
