@@ -5,15 +5,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-// Goal: sizeof(struct critbit_node) == 16
-// 8 bytes string + 8 bytes value
-// two 4 bytes internal pointer + 4 bytes bytepos + 1 byte otherbits
-//
-// for one 4k arena:
-//      total 256 16byte blocks
-//      32 bytes bitmap
-//      16 bytes pointer for splay_tree of arenas
-//
 struct critbit_node {
     void *child[2];
     uint32_t byte;
@@ -23,7 +14,7 @@ struct critbit_node {
 typedef void* critbit_head;
 
 #define IS_INTERNAL(ptr) (((size_t)(ptr)) & 1)
-#define TO_NODE(ptr) ((void *)((size_t)(ptr) - 1))
+#define TO_NODE(ptr) ((void *)((size_t)(ptr) ^ 1))
 
 static void * aligned_alloc(int size) {
     //XXX: Assume that malloc aligns memory on 4/8byte boundary
@@ -62,7 +53,9 @@ int critbit_contains(critbit_head *head, const char *key) {
 int critbit_get(critbit_head *head, const char *key, void **out) {
     const int len = strlen(key);
     const uint8_t *bytes = (void *)key;
+
     uint8_t *nearest = find_nearest(*head, bytes, len);
+
 
     if(strcmp((char *)nearest, key) == 0) {
         *out = *(void **)(nearest - sizeof(void *));
@@ -225,7 +218,7 @@ int add(void *obj, const char *key, void *val) {
 
 void* find(void *obj, const char *key) {
     critbit_head *head = obj;
-    void* out;
+    void* out = NULL;
     critbit_get(head, key, &out);
     return out;
 }
