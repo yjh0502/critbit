@@ -1,6 +1,6 @@
 CC=gcc
 CXX=g++
-FLAGS=-Wall -Werror -O2 -g -pg
+FLAGS=-Wall -Werror -O2
 CFLAGS=$(FLAGS) -std=c99
 CXXFLAGS=$(FLAGS) -std=c++0x
 
