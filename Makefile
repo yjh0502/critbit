@@ -1,6 +1,6 @@
 CC=gcc
 CXX=g++
-FLAGS=-Wall -Werror -O2
+FLAGS=-Wall -Werror -O2 -g -ggdb
 CFLAGS=$(FLAGS) -std=c99
 CXXFLAGS=$(FLAGS) -std=c++0x
 
@@ -11,7 +11,8 @@ SRCS=none.c \
 	uthash.c redisdict.c \
 	art.c critbit.c
 
-export ITER=100000
+export RAND=1
+export ITER=1000000
 
 OBJS=$(SRCS:.c=.o) $(CXXSRCS:.cc=.o)
 BINS=$(OBJS:.o=.bin)
@@ -19,7 +20,10 @@ OUTS=$(OBJS:.o=.out)
 
 export TIME=%E %M
 
-.PHONY: bins run
+.PHONY: bins run perf
+
+perf: critbit.bin
+	perf record ./$< && perf annotate ./$< && perf report
 
 bins: $(BINS)
 
@@ -31,7 +35,7 @@ run: $(OUTS)
 	time ./$< 2>&1 | tee $@
 
 %.bin: %.o helper.o
-	$(CXX) $(CFLAGS) $^ -o $@ && strip -s $@
+	$(CXX) $(CFLAGS) $^ -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<

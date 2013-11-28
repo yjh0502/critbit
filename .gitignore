@@ -1,3 +1,5 @@
 *.o
 *.out
 *.bin
+perf.data*
+*.sw[a-z]
