@@ -63,8 +63,7 @@ static int get_direction(critbit_node *node,
     return 0;
 }
 
-static void *find_nearest(void *p,
-        critbit_node *node, const uint8_t *bytes, const size_t bytelen) {
+static void *find_nearest(void *p, const uint8_t *bytes, const size_t bytelen) {
     while(IS_INTERNAL(p)) {
         critbit_node *node = TO_NODE(p);
         p = node->child[get_direction(node, bytes, bytelen)];
@@ -76,7 +75,7 @@ int critbit_contains(critbit_root *root, const char *key) {
     if(!root->head) { return 0; }
 
     const uint8_t *bytes = (void *)key;
-    char *nearest = find_nearest(root, root->head, bytes, strlen(key));
+    char *nearest = find_nearest(root->head, bytes, strlen(key));
     return strcmp(key, nearest) == 0;
 }
 
@@ -84,10 +83,11 @@ int critbit_get(critbit_root *root, const char *key, void **out) {
     const int len = strlen(key);
     const uint8_t *bytes = (void *)key;
 
-    char *nearest = find_nearest(root, root->head, bytes, len);
+    char *nearest = find_nearest(root->head, bytes, len);
 
     if(strcmp(nearest, key) == 0) {
-        *out = ((void *)nearest) - 1;
+        nearest -= sizeof(void *);
+        *out = *((void **)nearest);
         return 0;
     }
     return 1;
@@ -275,7 +275,6 @@ void* find(void *obj, const char *key) {
     critbit_root *root = obj;
     void* out = NULL;
     critbit_get(root, key, &out);
-    //printf("find returns: %d\n", ret);
     return out;
 }
 

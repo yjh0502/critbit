@@ -106,10 +106,8 @@ void get(void *obj, int iter) {
                 exit(-1);
             }
         } else {
-            /*
             printf("Failed to get `%s`\n", buf);
             exit(-1);
-            */
         }
     }
 }

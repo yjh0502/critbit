@@ -9,7 +9,7 @@ CXXSRCS= stlmap.cc stluomap.cc \
 SRCS=none.c \
 	bsdtree.c \
 	uthash.c redisdict.c \
-	art.c critbit.c
+	art.c critbit.c critbit_inplace.c
 
 export RAND=1
 export ITER=1000000
@@ -22,8 +22,9 @@ export TIME=%E %M
 
 .PHONY: bins run perf
 
-perf: critbit.bin
-	perf record ./$< && perf annotate ./$< && perf report
+perf: art.bin
+	perf stat ./$<
+	#perf record ./$< && perf annotate ./$< && perf report
 
 bins: $(BINS)
 
