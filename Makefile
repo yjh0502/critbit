@@ -9,8 +9,10 @@ CXXSRCS= stlmap.cc stluomap.cc \
 SRCS=none.c \
 	bsdtree.c \
 	uthash.c redisdict.c \
-	art.c critbit.c critbit_inplace.c
+	art.c \
+	critbit.c critbit_cow_loop.c critbit_cow_stack.c
 
+export LD_PRELOAD=/usr/lib/libjemalloc.so.1
 export RAND=1
 export ITER=1000000
 
@@ -22,7 +24,7 @@ export TIME=%E %M
 
 .PHONY: bins run perf
 
-perf: art.bin
+perf: critbit.bin
 	perf stat ./$<
 	#perf record ./$< && perf annotate ./$< && perf report
 
