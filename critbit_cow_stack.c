@@ -1,6 +1,6 @@
 // Critical-bit tree implementation
 
-#define NODE_CACHE 1
+#define NODE_CACHE
 #include "critbit_common.h"
 
 static void* cow_stack_insert(critbit_root *root, void *p,
@@ -85,16 +85,117 @@ int critbit_insert(critbit_root *root, const char *key, const void* value) {
         oldnode = TO_NODE(oldhead);
         newnode = TO_NODE(newhead);
 
-        if(oldnode->child[0] != newnode->child[0]) {
-            oldhead = oldnode->child[0];
-            newhead = newnode->child[0];
-            free_node(root, oldnode);
-        } else if(oldnode->child[1] != newnode->child[1]) {
+        if(oldnode->child[0] == newnode->child[0]) {
             oldhead = oldnode->child[1];
             newhead = newnode->child[1];
+            free_node(root, oldnode);
+        } else if(oldnode->child[1] == newnode->child[1]) {
+            oldhead = oldnode->child[0];
+            newhead = newnode->child[0];
             free_node(root, oldnode);
         }
     }
 
     return 0;
 }
+
+#define STATUS_NORMAL   0
+#define STATUS_FOUND    1
+#define STATUS_NOTFOUND 2
+
+static void* cow_stack_delete(critbit_root *root, void *p,
+        const uint8_t *bytes, const size_t bytelen, int *status_out) {
+    int status = STATUS_NORMAL;
+    critbit_node *node, *newnode;
+
+    if(IS_INTERNAL(p)) {
+        node = TO_NODE(p);
+        int dir = get_direction(node, bytes, bytelen);
+        critbit_node *child = cow_stack_delete(root, node->child[dir], bytes, bytelen, &status);
+        switch(status) {
+        case STATUS_NORMAL:
+            newnode = alloc_node(root);
+            memcpy(newnode, node, sizeof(critbit_node));
+            newnode->child[dir] = child;
+
+            return ((char *)newnode) + 1;
+        case STATUS_FOUND:
+            *status_out = STATUS_NORMAL;
+            return node->child[1-dir];
+        case STATUS_NOTFOUND:
+            *status_out = STATUS_NOTFOUND;
+            return NULL;
+        }
+    }
+
+
+    if(strcmp((const char *)p, (const char *)bytes))  {
+        *status_out = STATUS_NOTFOUND;
+    } else {
+        *status_out = STATUS_FOUND;
+    }
+
+    return NULL;
+}
+
+int critbit_delete(critbit_root *root, const char *key) {
+    if(!root->head)
+        return 1;
+
+    int status = STATUS_NORMAL;
+    const uint8_t *bytes = (void *)key;
+    const size_t len = strlen(key);
+    critbit_node *newhead = cow_stack_delete(root, root->head,
+            bytes, len, &status);
+
+    void *oldhead = root->head;
+    if(!newhead) {
+        if(status == STATUS_NOTFOUND) {
+            return 1;
+        }
+    }
+    root->head = newhead;
+
+    critbit_node *oldnode = NULL, *newnode = NULL;
+    while(IS_INTERNAL(newhead)) {
+        oldnode = TO_NODE(oldhead);
+        newnode = TO_NODE(newhead);
+
+        if(oldnode->child[0] == newnode->child[0]) {
+            oldhead = oldnode->child[1];
+            newhead = newnode->child[1];
+            free_node(root, oldnode);
+        } else if(oldnode->child[1] == newnode->child[1]) {
+            oldhead = oldnode->child[0];
+            newhead = newnode->child[0];
+            free_node(root, oldnode);
+        } else {
+            if(IS_INTERNAL(oldnode->child[0])) {
+                free_string(oldnode->child[1]);
+                free_node(root, oldnode);
+            } else if(IS_INTERNAL(oldnode->child[1])) {
+                free_string(oldnode->child[0]);
+                free_node(root, oldnode);
+            } else {
+                exit(-1);
+            }
+            return 0;
+        }
+    }
+
+    if(IS_INTERNAL(oldhead)) {
+        oldnode = TO_NODE(oldhead);
+        if(oldnode->child[0] == newhead) {
+            free_string(oldnode->child[1]);
+            free_node(root, oldnode);
+        } else if(oldnode->child[1] == newhead) {
+            free_string(oldnode->child[0]);
+            free_node(root, oldnode);
+        }
+    } else {
+        free_string(oldhead);
+    }
+
+    return 0;
+}
+

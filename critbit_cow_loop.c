@@ -5,7 +5,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define NODE_CACHE 1
+#define NODE_CACHE
+#define DEFAULT_DELETE
 #include "critbit_common.h"
 
 static void* cow_loop_insert(critbit_root *root,

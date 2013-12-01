@@ -12,7 +12,7 @@ SRCS=none.c \
 	art.c \
 	critbit.c critbit_cow_loop.c critbit_cow_stack.c
 
-export LD_PRELOAD=/usr/lib/libjemalloc.so.1
+#export LD_PRELOAD=/usr/lib/libjemalloc.so.1
 export RAND=1
 export ITER=1000000
 
@@ -46,7 +46,7 @@ run: $(OUTS)
 %.o: %.cc cc_common.h
 	$(CXX) $(CXXFLAGS) -c $<
 
-$(OBJS): helper.h Makefile
+$(OBJS): helper.h critbit_common.h Makefile
 
 clean:
 	rm -f *.o *.bin *.out

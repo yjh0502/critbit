@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define NODE_CACHE 0
+#define DEFAULT_DELETE
 #include "critbit_common.h"
 
 int critbit_insert(critbit_root *root, const char *key, const void* value) {
