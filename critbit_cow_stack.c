@@ -85,15 +85,10 @@ int critbit_insert(critbit_root *root, const char *key, const void* value) {
         oldnode = TO_NODE(oldhead);
         newnode = TO_NODE(newhead);
 
-        if(oldnode->child[0] == newnode->child[0]) {
-            oldhead = oldnode->child[1];
-            newhead = newnode->child[1];
-            free_node(root, oldnode);
-        } else if(oldnode->child[1] == newnode->child[1]) {
-            oldhead = oldnode->child[0];
-            newhead = newnode->child[0];
-            free_node(root, oldnode);
-        }
+        int dir = oldnode->child[0] == newnode->child[0];
+        oldhead = oldnode->child[dir];
+        newhead = newnode->child[dir];
+        free_node(root, oldnode);
     }
 
     return 0;
@@ -128,8 +123,7 @@ static void* cow_stack_delete(critbit_root *root, void *p,
         }
     }
 
-
-    if(strcmp((const char *)p, (const char *)bytes))  {
+    if(strcmp((const char *)p, (const char *)bytes)) {
         *status_out = STATUS_NOTFOUND;
     } else {
         *status_out = STATUS_FOUND;
@@ -149,10 +143,8 @@ int critbit_delete(critbit_root *root, const char *key) {
             bytes, len, &status);
 
     void *oldhead = root->head;
-    if(!newhead) {
-        if(status == STATUS_NOTFOUND) {
-            return 1;
-        }
+    if(!newhead && status == STATUS_NOTFOUND) {
+        return 1;
     }
     root->head = newhead;
 
@@ -170,28 +162,15 @@ int critbit_delete(critbit_root *root, const char *key) {
             newhead = newnode->child[0];
             free_node(root, oldnode);
         } else {
-            if(IS_INTERNAL(oldnode->child[0])) {
-                free_string(oldnode->child[1]);
-                free_node(root, oldnode);
-            } else if(IS_INTERNAL(oldnode->child[1])) {
-                free_string(oldnode->child[0]);
-                free_node(root, oldnode);
-            } else {
-                exit(-1);
-            }
-            return 0;
+            break;
         }
     }
 
     if(IS_INTERNAL(oldhead)) {
         oldnode = TO_NODE(oldhead);
-        if(oldnode->child[0] == newhead) {
-            free_string(oldnode->child[1]);
-            free_node(root, oldnode);
-        } else if(oldnode->child[1] == newhead) {
-            free_string(oldnode->child[0]);
-            free_node(root, oldnode);
-        }
+        int dir = oldnode->child[0] == newhead;
+        free_string(oldnode->child[dir]);
+        free_node(root, oldnode);
     } else {
         free_string(oldhead);
     }

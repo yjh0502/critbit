@@ -125,7 +125,6 @@ void cleanup_rand(void *obj, int iter) {
         fill_rand(buf, 10);
         if(del(obj, buf)) {
             printf("Failed to delete: %s\n", buf);
-            exit(-1);
         }
     }
 }
@@ -170,7 +169,7 @@ int main(void) {
     stats[size++] = MEASURE(obj, cleanup, iter);
 
     int i;
-    printf("%d   \t", iter);
+    printf("%.2f\t", iter / 1e6);
     for(i = 0; i < size; i++) {
         printf("%.2f\t", (stats[i].usec * 1e3f / stats[i].iter));
     }

@@ -926,7 +926,7 @@ void* find(void *obj, const char *key) {
 int del(void *obj, const char *key) {
     art_tree *tree = obj;
     void *out = art_delete(tree, (char *)key, strlen(key));
-    return out ? 1 : 0;
+    return out == NULL ? 1 : 0;
 }
 
 void clear(void *obj) {

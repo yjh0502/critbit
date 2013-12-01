@@ -14,7 +14,7 @@ SRCS=none.c \
 
 #export LD_PRELOAD=/usr/lib/libjemalloc.so.1
 export RAND=1
-export ITER=1000000
+export ITER=100
 
 OBJS=$(SRCS:.c=.o) $(CXXSRCS:.cc=.o)
 BINS=$(OBJS:.o=.bin)
@@ -22,11 +22,14 @@ OUTS=$(OBJS:.o=.out)
 
 export TIME=%E %M
 
-.PHONY: bins run perf
+.PHONY: bins run perf valgrind
 
 perf: critbit.bin
 	perf stat ./$<
 	#perf record ./$< && perf annotate ./$< && perf report
+
+valgrind: critbit_cow_stack.bin
+	valgrind ./$< 2>&1
 
 bins: $(BINS)
 
