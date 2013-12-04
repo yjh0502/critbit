@@ -89,10 +89,8 @@ void get_rand(void *obj, int iter) {
                 exit(-1);
             }
         } else {
-            /*
             printf("Failed to get `%s`\n", buf);
             exit(-1);
-            */
         }
     }
 
@@ -114,6 +112,40 @@ void get(void *obj, int iter) {
             printf("Failed to get `%s`\n", buf);
             exit(-1);
         }
+    }
+}
+
+#include <pthread.h>
+#define NUM_THREADS 32
+int thread_iter;
+void *get_thread(void *obj) {
+    int i;
+    char buf[20];
+    for(i = 1; i < thread_iter; ++i) {
+        int n = rand() % thread_iter;
+        sprintf(buf, "%09d", n);
+        void* val = (void *)(size_t)n;
+        if(i % 20 == 0) {
+            // 50% write
+            del(obj, buf);
+            add(obj, buf, val);
+        } else {
+            // 50% read
+            find(obj, buf);
+        }
+    }
+    return NULL;
+}
+void get_threaded(void *obj, int iter) {
+    pthread_t threads[NUM_THREADS];
+    int i;
+    thread_iter = iter;
+    for(i = 0; i < NUM_THREADS; i++) {
+        pthread_create(threads + i, NULL, get_thread, obj);
+    }
+    for(i = 0; i < NUM_THREADS; i++) {
+        void *out;
+        pthread_join(threads[i], &out);
     }
 }
 
@@ -166,6 +198,11 @@ int main(void) {
     stats[size++] = MEASURE(obj, cleanup_rand, iter);
     stats[size++] = MEASURE(obj, set, iter);
     stats[size++] = MEASURE(obj, get, iter);
+    stats[size++] = MEASURE(obj, cleanup, iter);
+
+    stats[size++] = MEASURE(obj, set, iter);
+    stats[size++] = MEASURE(obj, get_threaded, iter);
+    stats[size-1].iter *= NUM_THREADS;
     stats[size++] = MEASURE(obj, cleanup, iter);
 
     int i;

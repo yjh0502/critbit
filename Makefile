@@ -1,7 +1,7 @@
 CC=gcc
 CXX=g++
-FLAGS=-Wall -Werror -O2 -g -ggdb
-CFLAGS=$(FLAGS) -std=c99
+FLAGS=-pthread -Wall -Werror -O2 -g -ggdb
+CFLAGS=$(FLAGS) -std=gnu99
 CXXFLAGS=$(FLAGS) -std=c++0x
 
 CXXSRCS= stlmap.cc stluomap.cc \
@@ -10,11 +10,10 @@ SRCS=none.c \
 	bsdtree.c \
 	uthash.c redisdict.c \
 	art.c \
-	critbit.c critbit_cow_loop.c critbit_cow_stack.c
+	critbit.c critbit_cow_stack.c
 
 #export LD_PRELOAD=/usr/lib/libjemalloc.so.1
-export RAND=1
-export ITER=100
+export ITER=10000
 
 OBJS=$(SRCS:.c=.o) $(CXXSRCS:.cc=.o)
 BINS=$(OBJS:.o=.bin)

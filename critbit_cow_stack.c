@@ -1,15 +1,65 @@
 // Critical-bit tree implementation
+// TODO: assume sizeof(log) == sizeof(node)
+
+#include "queue.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+#define CRITBIT_LOG_INSERT 1
+#define CRITBIT_LOG_DELETE 2
+
+typedef struct critbit_log {
+    STAILQ_ENTRY(critbit_log) entry;
+    void *head;
+    int op;
+    int readers;
+} critbit_log;
+
+typedef struct critbit_node critbit_node;
+typedef struct critbit_root {
+    critbit_log *loghead;
+    critbit_node *freelist;
+    pthread_rwlock_t lock;
+    STAILQ_HEAD(loghead, critbit_log) logs;
+} critbit_root;
 
 #define NODE_CACHE
 #include "critbit_common.h"
 
+critbit_log *critbit_log_new(critbit_root *root, void *head, int op) {
+    critbit_log *log = alloc_node(root);
+    if(!log)
+        return NULL;
+
+    log->head = head;
+    log->op = op;
+    log->readers = 0;
+    STAILQ_INSERT_TAIL(&root->logs, log, entry);
+    return log;
+}
+
+critbit_root *critbit_new(void) {
+    if(sizeof(critbit_log) != sizeof(critbit_node)) {
+        fprintf(stderr, "sizeof(critbit_log) should same with sizeof(critbit_node)");
+        exit(-1);
+    }
+
+    critbit_root *root = malloc(sizeof(critbit_root));
+    root->loghead = NULL;
+    root->freelist = NULL;
+    pthread_rwlock_init(&root->lock, NULL);
+    STAILQ_INIT(&root->logs);
+
+    return root;
+}
+
 static void* cow_stack_insert(critbit_root *root, void *p,
         const uint8_t *bytes, const size_t bytelen, const void *value) {
-    critbit_node *node;
     if(!p) {
         return alloc_string((char *)bytes, bytelen, value);
     }
 
+    critbit_node *node;
     if(IS_INTERNAL(p)) {
         node = TO_NODE(p);
         int dir = get_direction(node, bytes, bytelen);
@@ -65,20 +115,9 @@ found:
     return ((char *)newnode) + 1;
 }
 
-int critbit_insert(critbit_root *root, const char *key, const void* value) {
-    const uint8_t *bytes = (void *)key;
-    const size_t len = strlen(key);
-
-    void *newhead = cow_stack_insert(root, root->head, bytes, len, value);
-    if(!newhead)
-        return 1;
-
-    void *oldhead = root->head;
-    root->head = newhead;
-
-    // Garbage collection
+static void cow_insert_cleanup(critbit_root *root, critbit_node *oldhead, critbit_node *newhead) {
     if(!oldhead)
-        return 0;
+        return;
 
     critbit_node *oldnode = NULL, *newnode = NULL;
     while(IS_INTERNAL(oldhead)) {
@@ -90,8 +129,6 @@ int critbit_insert(critbit_root *root, const char *key, const void* value) {
         newhead = newnode->child[dir];
         free_node(root, oldnode);
     }
-
-    return 0;
 }
 
 #define STATUS_NORMAL   0
@@ -132,22 +169,7 @@ static void* cow_stack_delete(critbit_root *root, void *p,
     return NULL;
 }
 
-int critbit_delete(critbit_root *root, const char *key) {
-    if(!root->head)
-        return 1;
-
-    int status = STATUS_NORMAL;
-    const uint8_t *bytes = (void *)key;
-    const size_t len = strlen(key);
-    critbit_node *newhead = cow_stack_delete(root, root->head,
-            bytes, len, &status);
-
-    void *oldhead = root->head;
-    if(!newhead && status == STATUS_NOTFOUND) {
-        return 1;
-    }
-    root->head = newhead;
-
+static void cow_delete_cleanup(critbit_root *root, void *oldhead, void *newhead) {
     critbit_node *oldnode = NULL, *newnode = NULL;
     while(IS_INTERNAL(newhead)) {
         oldnode = TO_NODE(oldhead);
@@ -174,7 +196,154 @@ int critbit_delete(critbit_root *root, const char *key) {
     } else {
         free_string(oldhead);
     }
+}
 
-    return 0;
+// Runs in critical section
+#define MAX_READERS (1<<30)
+static void collect_garbage(critbit_root *root) {
+    critbit_log *prevlog = STAILQ_FIRST(&root->logs);
+    critbit_log *nextlog = STAILQ_NEXT(prevlog, entry);
+    while(nextlog) {
+        if(prevlog->readers >= 0) {
+            __sync_fetch_and_sub(&prevlog->readers, MAX_READERS);
+        }
+        if(prevlog->readers != -MAX_READERS) {
+            return;
+        }
+
+        switch(nextlog->op) {
+        case CRITBIT_LOG_INSERT:
+            cow_insert_cleanup(root, prevlog->head, nextlog->head);
+            break;
+        case CRITBIT_LOG_DELETE:
+            cow_delete_cleanup(root, prevlog->head, nextlog->head);
+            break;
+        }
+        STAILQ_REMOVE_HEAD(&root->logs, entry);
+        free_node(root, prevlog);
+
+        prevlog = nextlog;
+        nextlog = STAILQ_NEXT(nextlog, entry);
+    }
+}
+
+int critbit_insert(critbit_root *root, const char *key, const void* value) {
+    const uint8_t *bytes = (void *)key;
+    const size_t len = strlen(key);
+
+    pthread_rwlock_wrlock(&root->lock);
+
+    int ret = 0;
+    void *head = NULL;
+    if(root->loghead)
+        head = root->loghead->head;
+
+    void *newhead = cow_stack_insert(root, head, bytes, len, value);
+    if(newhead) {
+        // sizeof(critbit_log) == sizeof(critbit_node)
+        critbit_log *log = critbit_log_new(root, newhead, CRITBIT_LOG_INSERT);
+        if(log) {
+            root->loghead = log;
+        } else {
+            ret = 1;
+        }
+    } else {
+        ret = 1;
+    }
+    collect_garbage(root);
+
+    pthread_rwlock_unlock(&root->lock);
+
+    return ret;
+}
+
+int critbit_delete(critbit_root *root, const char *key) {
+    if(!root->loghead)
+        return 1;
+
+    pthread_rwlock_wrlock(&root->lock);
+
+    int status = STATUS_NORMAL;
+    const uint8_t *bytes = (void *)key;
+    const size_t len = strlen(key);
+    critbit_node *newhead = cow_stack_delete(root, root->loghead->head,
+            bytes, len, &status);
+
+    int ret = 0;
+    if(!newhead && status == STATUS_NOTFOUND) {
+        ret = 1;
+    } else {
+        critbit_log *log = critbit_log_new(root, newhead, CRITBIT_LOG_DELETE);
+        if(log) {
+            root->loghead = log;
+        } else {
+            ret = 1;
+        }
+    }
+    collect_garbage(root);
+
+    pthread_rwlock_unlock(&root->lock);
+
+    return ret;
+}
+
+static critbit_log *get_head(critbit_root *root) {
+    for(;;) {
+        critbit_log *log = root->loghead;
+        // log->readers == 0: No reader
+        // log->readers > 0: There are active readers, not marked for GC
+        // log->readers < 0: Marked for GC, wait readers to exit
+        if(__sync_add_and_fetch(&log->readers, 1) >= 0) {
+            return log;
+        }
+    }
+}
+static void release_head(critbit_root *root, critbit_log *log) {
+    __sync_fetch_and_sub(&log->readers, 1);
+}
+
+int critbit_get(critbit_root *root, const char *key, void **out) {
+    const int len = strlen(key);
+    const uint8_t *bytes = (void *)key;
+
+    critbit_log *log = get_head(root);
+
+    char *nearest = find_nearest(log->head, bytes, len);
+    int ret = 1;
+    if(strcmp(nearest, key) == 0) {
+        nearest -= sizeof(void *);
+        *out = *((void **)nearest);
+        ret = 0;
+    }
+
+    release_head(root, log);
+
+    return ret;
+}
+
+static void clear_node(void *p) {
+    if(IS_INTERNAL(p)) {
+        // Internal node
+        critbit_node *node = TO_NODE(p);
+        clear_node(node->child[0]);
+        clear_node(node->child[1]);
+        free(node);
+    } else {
+        free_string(p);
+    }
+}
+
+void critbit_clear(critbit_root *root) {
+    if(root->loghead && root->loghead->head) {
+        clear_node(root->loghead->head);
+    }
+    free(root->loghead);
+
+    while(root->freelist) {
+        void *node = root->freelist;
+        root->freelist = root->freelist->child[0];
+        free(node);
+    }
+    free(root);
 }
 

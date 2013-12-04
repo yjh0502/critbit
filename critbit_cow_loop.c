@@ -1,4 +1,6 @@
 // Critical-bit tree implementation
+// DEPRECATED: slower than stack implementation!
+// NOTE: Maybe alloc/free order impacts on performance
 
 #include <stdio.h>
 #include <stdint.h>

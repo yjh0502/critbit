@@ -888,9 +888,11 @@ int art_iter_prefix(art_tree *t, char *key, int key_len, art_callback cb, void *
     return 0;
 }
 
-
+#include <pthread.h>
 #include "helper.h"
+
 art_tree tree;
+pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 void* init(void) {
     art_tree *tree = malloc(sizeof(art_tree));
@@ -908,28 +910,49 @@ void* init(void) {
 int add(void *obj, const char *key, void *val) {
     art_tree *tree = obj;
 
-    void *out = find(obj, key);
-    if(out)
-        return 1;
+    pthread_rwlock_wrlock(&rwlock);
 
-    if(art_insert(tree, (char *)key, strlen(key), val))
-        return 1;
+    int ret = 0, keylen = strlen(key);
+    if(art_search(tree, (char *)key, keylen))
+        ret = 1;
 
-    return 0;
+    if(!ret && art_insert(tree, (char *)key, keylen, val))
+        ret = 1;
+
+    pthread_rwlock_unlock(&rwlock);
+
+    return ret;
 }
 
 void* find(void *obj, const char *key) {
+    pthread_rwlock_rdlock(&rwlock);
+
     art_tree *tree = obj;
-    return art_search(tree, (char *)key, strlen(key));
+    void *out = art_search(tree, (char *)key, strlen(key));
+
+    pthread_rwlock_unlock(&rwlock);
+
+    return out;
 }
 
 int del(void *obj, const char *key) {
     art_tree *tree = obj;
+
+    pthread_rwlock_wrlock(&rwlock);
+
     void *out = art_delete(tree, (char *)key, strlen(key));
+
+    pthread_rwlock_unlock(&rwlock);
+
     return out == NULL ? 1 : 0;
 }
 
 void clear(void *obj) {
     art_tree *tree = obj;
+
+    pthread_rwlock_wrlock(&rwlock);
+
     destroy_art_tree(tree);
+
+    pthread_rwlock_unlock(&rwlock);
 }
