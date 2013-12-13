@@ -1,6 +1,6 @@
 
-BINS=`ls art.bin critbit.bin critbit_cow_stack.bin`
-make $BINS;
+BINS='art.bin critbit.bin critbit_cow.bin'
+make $BINS
 
 echoerr() { echo "$@" 1>&2; }
 

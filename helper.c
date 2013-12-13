@@ -200,10 +200,12 @@ int main(void) {
     stats[size++] = MEASURE(obj, get, iter);
     stats[size++] = MEASURE(obj, cleanup, iter);
 
+/*
     stats[size++] = MEASURE(obj, set, iter);
     stats[size++] = MEASURE(obj, get_threaded, iter);
     stats[size-1].iter *= NUM_THREADS;
     stats[size++] = MEASURE(obj, cleanup, iter);
+    */
 
     int i;
     printf("%.2f\t", iter / 1e6);

@@ -23,7 +23,6 @@ typedef struct critbit_root {
     STAILQ_HEAD(loghead, critbit_log) logs;
 } critbit_root;
 
-#define NODE_CACHE
 #include "critbit_common.h"
 
 critbit_log *critbit_log_new(critbit_root *root, void *head, int op) {
@@ -53,38 +52,22 @@ critbit_root *critbit_new(void) {
     return root;
 }
 
-static void* cow_stack_insert(critbit_root *root, void *p,
+static void* cow_stack_insert(critbit_root *root, void *head,
         const uint8_t *bytes, const size_t bytelen, const void *value) {
-    if(!p) {
+    if(!head)
         return alloc_string((char *)bytes, bytelen, value);
-    }
 
-    critbit_node *node;
-    if(IS_INTERNAL(p)) {
-        node = TO_NODE(p);
-        int dir = get_direction(node, bytes, bytelen);
-        critbit_node *child = cow_stack_insert(root, node->child[dir], bytes, bytelen, value);
-        if(!child)
-            return NULL;
-
-        critbit_node *newnode = alloc_node(root);
-        memcpy(newnode, node, sizeof(critbit_node));
-        newnode->child[dir] = child;
-
-        return ((char *)newnode) + 1;
-    }
-
-    // Terminal node, insert new one
-    uint8_t *q = p;
+    uint8_t *p = find_nearest(head, bytes, bytelen);
+    
     uint32_t newbyte, newotherbits;
     for(newbyte = 0; newbyte < bytelen; ++newbyte) {
-        if(q[newbyte] != bytes[newbyte]) {
-            newotherbits = q[newbyte] ^ bytes[newbyte];
+        if(p[newbyte] != bytes[newbyte]) {
+            newotherbits = p[newbyte] ^ bytes[newbyte];
             goto found;
         }
     }
-    if(q[newbyte]) {
-        newotherbits = q[newbyte];
+    if(p[newbyte]) {
+        newotherbits = p[newbyte];
         goto found;
     }
     return NULL;
@@ -94,25 +77,33 @@ found:
         newotherbits &= newotherbits - 1;
     }
     newotherbits ^= 0xFF;
-    uint8_t c = q[newbyte];
+    uint8_t c = p[newbyte];
     int newdirection = (1 + (newotherbits | c)) >> 8;
 
-    critbit_node *newnode = alloc_node(root);
-    if(!newnode)
-        return NULL;
+    critbit_node *newhead = alloc_node(root);
+    critbit_node *node = newhead;
+    while(IS_INTERNAL(head)) {
+        struct critbit_node *q = TO_NODE(head);
+        if(q->byte > newbyte)
+            break;
+        if(q->byte == newbyte && q->otherbits > newotherbits)
+            break;
 
-    char *x = alloc_string((char *)bytes, bytelen, value);
-    if(!x) {
-        free_node(root, newnode);
-        return NULL;
+        int dir = get_direction(q, bytes, bytelen);
+        head = q->child[dir];
+
+        memcpy(node, q, sizeof(critbit_node));
+        critbit_node *nextnode = alloc_node(root);
+        node->child[dir] = TO_NODE(nextnode);
+        node = nextnode;
     }
 
-    newnode->byte = newbyte;
-    newnode->otherbits = newotherbits;
-    newnode->child[newdirection] = p;
-    newnode->child[1 - newdirection] = x;
+    node->byte = newbyte;
+    node->otherbits = newotherbits;
+    node->child[1 - newdirection] = alloc_string((char *)bytes, bytelen, value);
+    node->child[newdirection] = head;
 
-    return ((char *)newnode) + 1;
+    return TO_NODE(newhead);
 }
 
 static void cow_insert_cleanup(critbit_root *root, critbit_node *oldhead, critbit_node *newhead) {
@@ -120,14 +111,21 @@ static void cow_insert_cleanup(critbit_root *root, critbit_node *oldhead, critbi
         return;
 
     critbit_node *oldnode = NULL, *newnode = NULL;
-    while(IS_INTERNAL(oldhead)) {
+    while(IS_INTERNAL(oldhead) && IS_INTERNAL(newhead)) {
         oldnode = TO_NODE(oldhead);
         newnode = TO_NODE(newhead);
 
-        int dir = oldnode->child[0] == newnode->child[0];
-        oldhead = oldnode->child[dir];
-        newhead = newnode->child[dir];
-        free_node(root, oldnode);
+        if(oldnode->child[0] == newnode->child[0]) {
+            oldhead = oldnode->child[1];
+            newhead = newnode->child[1];
+            free_node(root, oldnode);
+        } else if(oldnode->child[1] == newnode->child[1]) {
+            oldhead = oldnode->child[0];
+            newhead = newnode->child[0];
+            free_node(root, oldnode);
+        } else {
+            break;
+        }
     }
 }
 
@@ -347,3 +345,19 @@ void critbit_clear(critbit_root *root) {
     free(root);
 }
 
+/*
+int main(void) {
+    void *map = init();
+    add(map, "hello", (void *)(size_t)1);
+    add(map, "hell2", (void *)(size_t)2);
+    add(map, "hellp", (void *)(size_t)3);
+
+    printf("%lu\n", (size_t)find(map, "hello"));
+    printf("%lu\n", (size_t)find(map, "hell2"));
+    printf("%lu\n", (size_t)find(map, "hellp"));
+
+    clear(map);
+
+    return 0;
+}
+*/

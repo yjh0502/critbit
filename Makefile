@@ -10,9 +10,8 @@ SRCS=none.c \
 	bsdtree.c \
 	uthash.c redisdict.c \
 	art.c \
-	critbit.c critbit_cow_stack.c
+	critbit.c critbit_cow.c
 
-#export LD_PRELOAD=/usr/lib/libjemalloc.so.1
 export ITER=10000
 
 OBJS=$(SRCS:.c=.o) $(CXXSRCS:.cc=.o)
@@ -21,13 +20,15 @@ OUTS=$(OBJS:.o=.out)
 
 export TIME=%E %M
 
-.PHONY: bins run perf valgrind
+.PHONY: bins run perfstat perf valgrind
 
-perf: critbit.bin
+perfstat: critbit_cow.bin
 	perf stat ./$<
-	#perf record ./$< && perf annotate ./$< && perf report
 
-valgrind: critbit_cow_stack.bin
+perf: critbit_cow.bin
+	perf record ./$< && perf annotate ./$< && perf report
+
+valgrind: critbit_cow.bin
 	valgrind ./$< 2>&1
 
 bins: $(BINS)

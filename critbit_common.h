@@ -65,6 +65,17 @@ static void free_string(uint8_t *key) {
     free(key - sizeof(void *));
 }
 
+/*
+static void dump(void *p) {
+    if(IS_INTERNAL(p)) {
+        critbit_node *node = TO_NODE(p);
+        dump(node->child[0]);
+        dump(node->child[1]);
+    } else {
+        printf("%s\n", (char *)p);
+    }
+}
+*/
 
 static int get_direction(critbit_node *node,
         const uint8_t *bytes, const size_t bytelen) {
