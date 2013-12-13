@@ -1,7 +1,11 @@
-map_benchmark
+Critbit
 =============
 
-Benchmark various map data structure algorithms/implementations
+Critical-bit tree implementation, based on djb's critbit (http://cr.yp.to/critbit.html).
+
+Benchmark
+=============
+Source tree includes various map data structure algorithms/implementations for benchmarking
 
 Hash tables
  - redisdict: Dictionary used in Redis: https://github.com/antirez/redis/blob/unstable/src/dict.h
