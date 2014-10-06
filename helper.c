@@ -39,13 +39,14 @@ static stat measure(void *obj, const char *name, measure_func func, int iter) {
 void fill_rand(char *out, int len) {
     int i;
     for(i = 0; i < len; i++) {
-        out[i] = (rand() % 0x5e) + 0x20;
+        out[i] = (rand() & 0xFF) | 0x80;
     }
     out[len] = '\0';
 }
 
+#define RANDOM_SEED 10
 void set_rand(void *obj, int iter) {
-    srand(0);
+    srand(RANDOM_SEED);
     int i;
 
     char buf[20];
@@ -75,7 +76,7 @@ void set(void *obj, int iter) {
 }
 
 void get_rand(void *obj, int iter) {
-    srand(0);
+    srand(RANDOM_SEED);
     int i;
 
     char buf[20];
@@ -95,6 +96,32 @@ void get_rand(void *obj, int iter) {
     }
 
 }
+
+void get_rand_100(void *obj, int iter) {
+    const int P = 100;
+    int i, j;
+    iter /= P;
+    for(j = 0; j < P; j++) {
+        srand(RANDOM_SEED);
+
+        char buf[20];
+        for(i = 1; i < iter; ++i) {
+            fill_rand(buf, 10);
+            void *out = find(obj, buf);
+            if(out) {
+                int val = (size_t)out;
+                if(val != i) {
+                    printf("invalid value: %d != %d\n", i, val);
+                    exit(-1);
+                }
+            } else {
+                printf("Failed to get `%s`\n", buf);
+                exit(-1);
+            }
+        }
+    }
+}
+
 
 void get(void *obj, int iter) {
     int i;
@@ -150,7 +177,7 @@ void get_threaded(void *obj, int iter) {
 }
 
 void cleanup_rand(void *obj, int iter) {
-    srand(0);
+    srand(RANDOM_SEED);
     int i;
     char buf[20];
     for(i = 1; i < iter; ++i) {
@@ -195,10 +222,15 @@ int main(void) {
 
     stats[size++] = MEASURE(obj, set_rand, iter);
     stats[size++] = MEASURE(obj, get_rand, iter);
+    //info(obj);
     stats[size++] = MEASURE(obj, cleanup_rand, iter);
+
+/*
     stats[size++] = MEASURE(obj, set, iter);
     stats[size++] = MEASURE(obj, get, iter);
+    info(obj);
     stats[size++] = MEASURE(obj, cleanup, iter);
+    */
 
 /*
     stats[size++] = MEASURE(obj, set, iter);

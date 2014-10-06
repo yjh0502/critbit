@@ -9,3 +9,6 @@ void* find(void *obj, const char *key);
 int del(void *obj, const char *key);
 // removes all elements
 void clear(void *obj);
+
+// prints datastructure-specific stats
+void info(void *obj);
