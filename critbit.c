@@ -7,7 +7,6 @@
 
 typedef struct critbit_root {
     void *head;
-    pthread_rwlock_t lock;
 } critbit_root;
 
 #include "critbit_common.h"
@@ -15,7 +14,6 @@ typedef struct critbit_root {
 critbit_root *critbit_new(void) {
     critbit_root *root = malloc(sizeof(critbit_root));
     root->head = NULL;
-    pthread_rwlock_init(&root->lock, NULL);
 
     return root;
 }
@@ -94,9 +92,7 @@ found:
 int critbit_insert(critbit_root *root, const char *key, const void* value) {
     const size_t len = strlen(key);
 
-    pthread_rwlock_wrlock(&root->lock);
     int ret = critbit_insert_inplace(root, key, len, value);
-    pthread_rwlock_unlock(&root->lock);
 
     return ret;
 }
@@ -137,9 +133,7 @@ static int critbit_delete_inplace(critbit_root *root, const char *key, int keyle
 int critbit_delete(critbit_root *root, const char *key) {
     const size_t len = strlen(key);
 
-    pthread_rwlock_wrlock(&root->lock);
     int ret = critbit_delete_inplace(root, key, len);
-    pthread_rwlock_unlock(&root->lock);
 
     return ret;
 }
@@ -148,7 +142,6 @@ int critbit_get(critbit_root *root, const char *key, void **out) {
     const int len = strlen(key);
     const uint8_t *bytes = (void *)key;
 
-    pthread_rwlock_rdlock(&root->lock);
     char *nearest = find_nearest(root->head, bytes, len);
 
     int ret = 1;
@@ -157,7 +150,6 @@ int critbit_get(critbit_root *root, const char *key, void **out) {
         *out = *((void **)nearest);
         ret = 0;
     }
-    pthread_rwlock_unlock(&root->lock);
 
     return ret;
 }
