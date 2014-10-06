@@ -956,3 +956,77 @@ void clear(void *obj) {
 
     pthread_rwlock_unlock(&rwlock);
 }
+
+// Recursively destroys the tree
+void fill_depth(art_node *n, int depth, int *out, int outsize) {
+    // Break if null
+    if (!n) return;
+
+    // Special case leafs
+    if (IS_LEAF(n)) {
+        if(depth > outsize) {
+            printf("overflow: %d\n", depth);
+            return;
+        }
+        ++out[depth];
+        return;
+    }
+
+    // Handle each node type
+    int i;
+    union {
+        art_node4 *p1;
+        art_node16 *p2;
+        art_node48 *p3;
+        art_node256 *p4;
+    } p;
+    switch (n->type) {
+        case NODE4:
+            p.p1 = (art_node4*)n;
+            for (i=0;i<n->num_children;i++) {
+                fill_depth(p.p1->children[i], depth+1, out, outsize);
+            }
+            break;
+
+        case NODE16:
+            p.p2 = (art_node16*)n;
+            for (i=0;i<n->num_children;i++) {
+                fill_depth(p.p2->children[i], depth+1, out, outsize);
+            }
+            break;
+
+        case NODE48:
+            p.p3 = (art_node48*)n;
+            for (i=0;i<n->num_children;i++) {
+                fill_depth(p.p3->children[i], depth+1, out, outsize);
+            }
+            break;
+
+        case NODE256:
+            p.p4 = (art_node256*)n;
+            for (i=0;i<256;i++) {
+                if (p.p4->children[i])
+                    fill_depth(p.p4->children[i], depth+1, out, outsize);
+            }
+            break;
+
+        default:
+            abort();
+    }
+}
+
+#define DEPTH_SIZE 100
+void info(void *obj) {
+    art_tree *tree = obj;
+    int depth_dist[DEPTH_SIZE];
+    memset(depth_dist, 0, sizeof(depth_dist));
+    fill_depth(tree->root, 0, depth_dist, DEPTH_SIZE);
+
+    int i;
+    for(i = 0; i < DEPTH_SIZE; i++) {
+        if(depth_dist[i] == 0)
+            continue;
+        printf("%d:\t%d\n", i, depth_dist[i]);
+    }
+    printf("\n");
+}

@@ -127,3 +127,34 @@ void clear(void *obj) {
     critbit_clear(root);
 
 }
+
+void fill_depth(void *ptr, int depth, int *out, int outsize) {
+    if(!IS_INTERNAL(ptr)) {
+        if(depth > outsize) {
+            printf("overflow: %d\n", depth);
+            return;
+        }
+        ++out[depth];
+        return;
+    }
+
+    critbit_node *node = TO_NODE(ptr);
+    fill_depth(node->child[0], depth+1, out, outsize);
+    fill_depth(node->child[1], depth+1, out, outsize);
+}
+
+#define DEPTH_SIZE 100
+void info(void *obj) {
+    critbit_root *root = obj;
+    int depth_dist[DEPTH_SIZE];
+    memset(depth_dist, 0, sizeof(depth_dist));
+    fill_depth(root->head, 0, depth_dist, DEPTH_SIZE);
+
+    int i;
+    for(i = 0; i < DEPTH_SIZE; i++) {
+        if(depth_dist[i] == 0)
+            continue;
+        printf("%d:\t%d\n", i, depth_dist[i]);
+    }
+    printf("\n");
+}
