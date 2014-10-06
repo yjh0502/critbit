@@ -20,34 +20,13 @@ int critbit_delete(critbit_root *root, const char *key);
 void critbit_clear(critbit_root *root);
 
 #define IS_INTERNAL(ptr) (((size_t)ptr) & 1)
-#define TO_NODE(ptr) ((void *)((size_t)(ptr) ^ 1))
+#define TO_NODE(ptr) ((void *)((size_t)(ptr) & ~1))
+#define FROM_NODE(node) (void *)((size_t)node + 1)
 
 #define alloc_aligned malloc
 
-#ifdef NODE_CACHE
-static void free_node(critbit_root *root, void *data) {
-    critbit_node *node = data;
-    node->child[0] = root->freelist;
-    root->freelist = node;
-}
-
-static void * alloc_node(critbit_root *root) {
-    int i;
-    void *ret = NULL;
-    if(!root->freelist) {
-        for(i = 0; i < 64; ++i) {
-            free_node(root, alloc_aligned(sizeof(critbit_node)));
-        }
-    }
-
-    ret = root->freelist;
-    root->freelist = root->freelist->child[0];
-    return ret;
-}
-#else
 #define free_node(root, node) free(node)
 #define alloc_node(root) alloc_aligned(sizeof(critbit_node))
-#endif
 
 static void* alloc_string(const char *key, int len, const void *value) {
     uint8_t *p = alloc_aligned(len + sizeof(value) + 1);
@@ -64,18 +43,6 @@ static void* alloc_string(const char *key, int len, const void *value) {
 static void free_string(uint8_t *key) {
     free(key - sizeof(void *));
 }
-
-/*
-static void dump(void *p) {
-    if(IS_INTERNAL(p)) {
-        critbit_node *node = TO_NODE(p);
-        dump(node->child[0]);
-        dump(node->child[1]);
-    } else {
-        printf("%s\n", (char *)p);
-    }
-}
-*/
 
 static int get_direction(critbit_node *node,
         const uint8_t *bytes, const size_t bytelen) {

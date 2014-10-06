@@ -152,12 +152,10 @@ void *get_thread(void *obj) {
         int n = rand() % thread_iter;
         sprintf(buf, "%09d", n);
         void* val = (void *)(size_t)n;
-        if(i % 20 == 0) {
-            // 50% write
+        if(i % 200 == 0) {
             del(obj, buf);
             add(obj, buf, val);
         } else {
-            // 50% read
             find(obj, buf);
         }
     }
@@ -222,22 +220,18 @@ int main(void) {
 
     stats[size++] = MEASURE(obj, set_rand, iter);
     stats[size++] = MEASURE(obj, get_rand, iter);
-    //info(obj);
     stats[size++] = MEASURE(obj, cleanup_rand, iter);
 
-/*
+    /*
     stats[size++] = MEASURE(obj, set, iter);
     stats[size++] = MEASURE(obj, get, iter);
-    info(obj);
     stats[size++] = MEASURE(obj, cleanup, iter);
     */
 
-/*
     stats[size++] = MEASURE(obj, set, iter);
     stats[size++] = MEASURE(obj, get_threaded, iter);
     stats[size-1].iter *= NUM_THREADS;
     stats[size++] = MEASURE(obj, cleanup, iter);
-    */
 
     int i;
     printf("%.2f\t", iter / 1e6);

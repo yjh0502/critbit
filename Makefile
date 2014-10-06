@@ -1,6 +1,6 @@
 CC=gcc
 CXX=g++
-FLAGS=-pthread -Wall -Werror -O2 -g -ggdb
+FLAGS=-pthread -Wall -Werror -Os -g -ggdb
 CFLAGS=$(FLAGS) -std=gnu99
 CXXFLAGS=$(FLAGS) -std=c++0x
 
@@ -10,7 +10,7 @@ SRCS=none.c \
 	bsdtree.c \
 	uthash.c redisdict.c \
 	art.c \
-	critbit.c critbit_cow.c
+	critbit.c
 
 export ITER=10000
 
@@ -22,13 +22,13 @@ export TIME=%E %M
 
 .PHONY: bins run perfstat perf valgrind
 
-perfstat: critbit_cow.bin
+perfstat: critbit.bin
 	perf stat ./$<
 
-perf: critbit_cow.bin
+perf: critbit.bin
 	perf record ./$< && perf annotate ./$< && perf report
 
-valgrind: critbit_cow.bin
+valgrind: critbit.bin
 	valgrind ./$< 2>&1
 
 bins: $(BINS)

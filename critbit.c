@@ -4,9 +4,14 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 typedef struct critbit_root {
     void *head;
+
+    pthread_mutex_t wlock;
+    pthread_rwlock_t left_lock, right_lock;
+    pthread_rwlock_t *cur_rwlock, *prev_rwlock;
 } critbit_root;
 
 #include "critbit_common.h"
@@ -14,6 +19,13 @@ typedef struct critbit_root {
 critbit_root *critbit_new(void) {
     critbit_root *root = malloc(sizeof(critbit_root));
     root->head = NULL;
+
+    root->wlock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+    root->left_lock = (pthread_rwlock_t)PTHREAD_RWLOCK_INITIALIZER;
+    root->right_lock = (pthread_rwlock_t)PTHREAD_RWLOCK_INITIALIZER;
+
+    root->cur_rwlock = &root->left_lock;
+    root->prev_rwlock = &root->right_lock;
 
     return root;
 }
@@ -33,8 +45,9 @@ static int critbit_insert_inplace(critbit_root *root,
     }
 
     p = find_nearest(root->head, bytes, keylen);
-    
-    uint32_t newbyte, newotherbits;
+
+    uint32_t newbyte;
+    uint8_t newotherbits;
     for(newbyte = 0; newbyte < keylen; ++newbyte) {
         if(p[newbyte] != bytes[newbyte]) {
             newotherbits = p[newbyte] ^ bytes[newbyte];
@@ -84,7 +97,9 @@ found:
         wherep = q->child + get_direction(q, bytes, keylen);
     }
     node->child[newdirection] = *wherep;
-    *wherep = (void *)(1 + (size_t)node);
+    __sync_synchronize();
+    *wherep = FROM_NODE(node);
+    __sync_synchronize();
 
     return 0;
 }
@@ -92,13 +107,15 @@ found:
 int critbit_insert(critbit_root *root, const char *key, const void* value) {
     const size_t len = strlen(key);
 
+    pthread_mutex_lock(&root->wlock);
     int ret = critbit_insert_inplace(root, key, len, value);
+    pthread_mutex_unlock(&root->wlock);
 
     return ret;
 }
 
-static int critbit_delete_inplace(critbit_root *root, const char *key, int keylen) {
-    if(!root->head) return 1;
+static void * critbit_delete_inplace(critbit_root *root, const char *key, int keylen) {
+    if(!root->head) return NULL;
 
     const uint8_t *bytes = (void *)key;
     uint8_t *p = root->head;
@@ -114,34 +131,71 @@ static int critbit_delete_inplace(critbit_root *root, const char *key, int keyle
         p = *wherep;
     }
 
-    if(strcmp(key, (const char *)p)) {
-        return 1;
+    if(strcmp(key, (const char *)p) != 0) {
+        return NULL;
     }
 
-    free_string(p);
     if(!whereq) {
         root->head = NULL;
-        return 0;
+        return p;
     }
 
     *whereq = q->child[1 - dir];
-    free_node(root, q);
-
-    return 0;
+    __sync_synchronize();
+    return FROM_NODE(q);
 }
 
 int critbit_delete(critbit_root *root, const char *key) {
     const size_t len = strlen(key);
 
-    int ret = critbit_delete_inplace(root, key, len);
+    // begin critical section
+    pthread_mutex_lock(&root->wlock);
 
-    return ret;
+    void * p = critbit_delete_inplace(root, key, len);
+
+    pthread_rwlock_t *lock = root->cur_rwlock;
+    pthread_rwlock_t *newlock = root->prev_rwlock;
+
+    // swap two locks
+    if(!__sync_val_compare_and_swap(&root->cur_rwlock, lock, newlock)) {
+        printf("!!!\n");
+    }
+    if(!__sync_val_compare_and_swap(&root->prev_rwlock, newlock, lock)) {
+        printf("!!!\n");
+    }
+
+    // wait until all readers are out
+    pthread_rwlock_wrlock(lock);
+    pthread_rwlock_unlock(lock);
+
+    // end critical section
+    pthread_mutex_unlock(&root->wlock);
+
+    if(!p)
+        return 1;
+
+    if(!IS_INTERNAL(p)) {
+        free_string(p);
+    } else {
+        critbit_node *node = TO_NODE(p);
+        if(!IS_INTERNAL(node->child[0]) && strcmp(key, (const char *)node->child[0]) == 0) {
+            free_string(node->child[0]);
+            free_node(root, node);
+        } else {
+            free_string(node->child[1]);
+            free_node(root, node);
+        }
+    }
+
+    return 0;
 }
 
 int critbit_get(critbit_root *root, const char *key, void **out) {
     const int len = strlen(key);
     const uint8_t *bytes = (void *)key;
 
+    pthread_rwlock_t *lock = root->cur_rwlock;
+    pthread_rwlock_rdlock(lock);
     char *nearest = find_nearest(root->head, bytes, len);
 
     int ret = 1;
@@ -150,6 +204,7 @@ int critbit_get(critbit_root *root, const char *key, void **out) {
         *out = *((void **)nearest);
         ret = 0;
     }
+    pthread_rwlock_unlock(lock);
 
     return ret;
 }
